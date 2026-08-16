@@ -1,0 +1,46 @@
+# ===== 敏感信息 =====
+.env
+*.env
+.env.local
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# ===== 运行时产物（每次运行自动生成，不入库）=====
+output/
+*.xlsx
+*.csv
+*.json
+!data/case.xlsx
+!tool_experience_data.json
+!decision_models/
+!scenario_models/
+
+# ===== LLM 运行生成的临时脚本（不入库）=====
+probe_*.py
+debug_*.py
+diagnose_*.py
+inspect_*.py
+introspect_*.py
+verify_result.py
+decision_model*.py
+decision_scheduling*.py
+order_scheduling_*.py
+material_feeding_*.py
+mechanism_verification_report_*.json
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
