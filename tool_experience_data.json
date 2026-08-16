@@ -1,0 +1,73 @@
+{
+  "version": "1.2",
+  "experiences": [
+    {
+      "id": "exp_001",
+      "target": "data_agent",
+      "desc": "多源异构订单数据清洗工具链：适用于包含缺失值、异常类别、数值噪声的CSV/Excel订单数据，目标输出干净、类型正确的结构化数据文件，供下游建模消费",
+      "order": [
+        "check_file_exists",
+        "init_data_cleaning",
+        "handle_missing_values",
+        "handle_categorical_abnormal",
+        "handle_numeric_noise",
+        "save_cleaned_data"
+      ],
+      "exam": {
+        "in": "case.xlsx（100行x6列，订单批量含18个缺失值）",
+        "out": "case_cleaned.xlsx（缺失值已填充，枚举/离散列完整保留）",
+        "res": "执行成功；枚举类别（工艺节点4类、可处理工厂4类）与离散档位（批量6档）全部保留，仅填充缺失值"
+      }
+    },
+    {
+      "id": "exp_002",
+      "target": "scenario_agent",
+      "desc": "晶圆调度场景模型构建工具链（批次产能合批仿真建模）：基于清洗后订单数据，动态提取工厂集合与差异化批次容量、工艺节点到可处理工厂的映射；建立订单-工艺节点-工厂实体关系；构建批次产能合批仿真解码函数（必须实现多订单合批机制，KTPO核心规则）：每个工厂维护一个批次（容量=工厂批次容量，如2154片），订单按序到达时：①若当前批次剩余容量>=订单批量，则该订单加入当前批次，批次结束时间不变（除非该订单处理时间大于批次已用时间，则批次结束时间=批次开始时间+该订单处理时间）；②若剩余容量不足，则关闭当前批次、开启新批次（新批次开始时间=旧批次结束时间，批次结束时间=新批次开始时间+该订单处理时间）；③订单完工时间=其所在批次的结束时间。同批次内多个订单共享处理时间（取批内最大处理时间），严禁把每个订单单独按ceil(批量/容量)×处理时间串行累加（那是错误的订单级串行模型）。据此计算最大完工时间makespan与准时交付率OTD两个评估指标；模型作为下游优化问题的目标函数载体",
+      "order": [
+        "semantic_subscribe",
+        "read_excel_structure",
+        "generate_python_code",
+        "extract_python_code",
+        "save_scenario_code",
+        "semantic_publish"
+      ],
+      "exam": {
+        "in": "case_cleaned.xlsx（清洗后数据路径，来自 data2scenario 标签；100订单/10工厂/4工艺节点，批量500~1000片，批次容量2154~3054片）",
+        "out": "order_scheduling_scenario.py（含 load_case_data 动态数据加载 + decode_and_evaluate 批次产能合批仿真解码函数）",
+        "res": "执行成功；工厂批次容量动态生成（F1~F10：2154~3054片/批），工艺映射（130nm→F2/F6/F10等）；合批解码：多个订单可共享同一批次（容量累减），批次处理时间=批内最大处理时间，容量不足才开新批；正确合批模型下100订单/10工厂 makespan≈13T、OTD≈76%（对比：错误的订单级串行模型 makespan≈35T、OTD≈28%），可见合批机制是决定调度性能的关键"
+      }
+    },
+    {
+      "id": "exp_003",
+      "target": "decision_agent",
+      "desc": "知识引导双种群多目标进化优化工具链（NSGA-II与差分进化DE融合，KTPO方法论）：知识初始化（30%拖期导向启发式：交付早批量大的订单优先分配负载轻工厂；30%完工导向启发式：处理时间长的订单优先；40%随机个体保持多样性）；双种群并行进化（NSGA-II子种群：非支配排序+拥挤度距离+二元锦标赛选择+OX顺序交叉+机器均匀交叉+交换变异；DE子种群：DE/rand/1离散变异+二项式交叉）；知识局部搜索（逐厂相邻交换降低总拖期、跨厂迁移降低makespan）；外部Pareto档案跨代保留历史最优；最终合并种群非支配排序提取帕累托前沿，输出多组[Makespan, OTD]非支配解",
+      "order": [
+        "semantic_subscribe",
+        "read_and_analyze_scenario_model",
+        "save_script_to_local",
+        "execute_decision_script",
+        "semantic_publish"
+      ],
+      "exam": {
+        "in": "order_scheduling_scenario.py（场景模型，来自 scenario2decision 标签；含批次产能合批仿真解码器）",
+        "out": "decision_scheduling_final.py + decision_result.json（Pareto前沿解集：机器分配串+排序串）",
+        "res": "执行成功；100订单/10工厂案例 pop=60/gen=50 耗时约14秒；Pareto解：Makespan=13T, OTD=76%（LLM贪心基线仅28%）；关键：①个体编码为[机器分配串, 订单排序串]双串结构；②解码必须复用场景模型的批次产能合批仿真（同批共享处理时间），若解码器退化为订单级串行模型将导致 makespan≈35T/OTD≈28%，务必保持与场景模型解码函数一致"
+      }
+    },
+    {
+      "id": "exp_004",
+      "target": "data_agent",
+      "desc": "数据质量核验工具链：清洗后对关键枚举列与数值列做完整性校验（唯一值数量、分布对比），确认清洗未破坏业务数据",
+      "order": [
+        "read_excel_structure",
+        "read_excel_content"
+      ],
+      "exam": {
+        "in": "case_cleaned.xlsx",
+        "out": "列分布对比报告",
+        "res": "执行成功；工艺节点4类、可处理工厂4类、批量6档与原始完全一致"
+      }
+    }
+  ],
+  "description": "晶圆多工厂订单分配与调度场景 - 工具使用经验库（论文机制③），v1.2 吸收 KTPO 进化算法核心方法论与批次合批仿真规则"
+}
