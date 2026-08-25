@@ -121,7 +121,7 @@ FAST_MODE = os.getenv("FAST_MODE", "0") == "1"
 
 def init_model():
     """初始化主模型（DeepSeek）"""
-    return init_chat_model("deepseek:deepseek-v4-flash", temperature=0.2)
+    return init_chat_model("deepseek:deepseek-v4-flash-0731", temperature=0.2)
 
 
 # ===================== 场景分析：从数据文件提取场景特征 =====================
@@ -231,7 +231,7 @@ def build_subagent_configs(scene_feats: dict, global_pkg: dict) -> list:
                     tools.append(t)
             tool_note = f"[机制③] 工具链 exp_{info['exp_id']}（匹配度{info['score']}）：{chain}"
             # 机制③关键：将匹配经验链的方法论与示例注入 P2（ExpRef），
-            # 让 LLM 融合提示词时吸收经验库中的优质实践（如 KTPO 进化方法论）
+            # 让 LLM 融合提示词时吸收经验库中的优质实践（进化算法方法论）
             p2["ExpRef"] = {
                 "exp_id": info["exp_id"],
                 "desc": info.get("desc", ""),
