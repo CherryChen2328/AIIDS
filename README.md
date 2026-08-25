@@ -1,6 +1,6 @@
-# AIIDS — Adaptive Intelligent Industrial Decision System
+# AIIDS — AIIDS: Multi-AI Agent Driven Industrial Data Space Framework for Multi-Factory Wafer Fabrication Order Allocation and Scheduling
 
-**AIIDS (Adaptive Intelligent Industrial Decision System)** is a multi-agent system for multi-fab wafer order allocation and scheduling. It integrates three core mechanisms to enable adaptive, reliable, and efficient collaboration among specialized AI agents:
+**AIIDS (Multi-AI Agent Driven Industrial Data Space Framework)** is a multi-agent system for multi-fab wafer order allocation and scheduling. It integrates three core mechanisms to enable adaptive, reliable, and efficient collaboration among specialized AI agents:
 
 1. **Two-Stage System Prompt Mechanism**
    - Static prompt P₁ = {Role, Workflow, OutReq, ValRule}: defines agent role, coarse-grained workflow, output requirements, and industrial value rules.
