@@ -1,4 +1,4 @@
-# AIIDS — Adaptive Multi-Agent Framework for Multi-Factory Wafer Order Allocation and Scheduling
+# AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling
 
 **AIIDS (Adaptive Intelligent Industrial Decision System)**
 
