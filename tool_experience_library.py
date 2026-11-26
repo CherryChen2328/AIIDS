@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Tuple
 
 from embedding_service import embed_query, embed_texts, cosine_similarity
 
-# 匹配阈值 τ_e：任务与经验链匹配度低于此值则自主构建新链
+# Match threshold tau_e: below it the agent builds a new chain
 TAU_E = float(os.getenv("TOOL_MATCH_THRESHOLD", "0.55"))
 EXPERIENCE_DATA_PATH = os.path.join(os.path.dirname(__file__), "tool_experience_data.json")
 
@@ -40,13 +40,13 @@ class ToolExperienceLibrary:
         self._desc_vectors: Dict[str, List[float]] = {}
         self._load()
 
-    # ---------------- 加载与持久化 ----------------
+    # ---------------- load and persist ----------------
     def _load(self) -> None:
         if os.path.exists(self.data_path):
             with open(self.data_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.experiences = data.get("experiences", [])
-        # 批量嵌入全部经验描述：Ollama 每次调用固定开销约 2.1 秒，逐条调用不可接受
+        # Embed all descriptions in one batch: per-call overhead dominates otherwise
         missing = [e for e in self.experiences if e["id"] not in self._desc_vectors]
         if missing:
             _vecs = embed_texts([e["desc"] for e in missing])
@@ -64,7 +64,7 @@ class ToolExperienceLibrary:
             self._desc_vectors[exp_id] = embed_query(exp["desc"])
         return self._desc_vectors[exp_id]
 
-    # ---------------- 检索（语义匹配） ----------------
+    # ---------------- retrieval (semantic match) ----------------
     def retrieve(self, task_description: str, top_k: int = 1, target_agent: str = None) -> List[Dict]:
         """按任务描述语义检索经验链（e_i = Embed(E_i^desc)，Sim = 余弦相似度）。
 
@@ -80,7 +80,7 @@ class ToolExperienceLibrary:
         candidates = self.experiences
         if target_agent:
             candidates = [e for e in self.experiences if e.get("target") == target_agent]
-            # 域内无经验时回退全库（保证有候选）
+            # fall back to the whole library when the domain is empty
             if not candidates:
                 candidates = self.experiences
         if not candidates:
@@ -124,7 +124,7 @@ class ToolExperienceLibrary:
             "best_exp_id": best["exp"]["id"],
         }
 
-    # ---------------- 可执行性验证（论文 Φ(E_i)） ----------------
+    # ---------------- executability check Phi(E_i) ----------------
     @staticmethod
     def verify_executability(exec_log: List[str], output_valid: bool = True) -> int:
         """可执行性判定函数 Φ(E_i)。
@@ -142,7 +142,7 @@ class ToolExperienceLibrary:
                 return 0
         return 1 if output_valid else 0
 
-    # ---------------- 增量更新（事件驱动） ----------------
+    # ---------------- incremental update (event driven) ----------------
     def add_experience(self, desc: str, tool_order: List[str],
                        example: Dict, exec_log: List[str], output_valid: bool = True) -> Optional[Dict]:
         """新增经验链：先按 Φ(E_i) 验证可执行性，通过后封装入库并计算向量。
@@ -160,14 +160,13 @@ class ToolExperienceLibrary:
         if self.verify_executability(exec_log, output_valid) != 1:
             return None
 
-        # 去重：同一语义描述已存在则直接复用，避免经验库被重复条目污染
-        # （此前每次运行都会无条件新增一条相同描述的经验，实测累积出 23 条完全重复的条目）
+        # de-duplicate by description prefix so the library is not polluted
         key = (desc or "")[:80]
         for e in self.experiences:
             if (e.get("desc") or "")[:80] == key:
                 return e
 
-        # ID 生成：取现有最大编号 +1，避免删除条目后编号冲突
+        # next id = max existing + 1
         nums = []
         for e in self.experiences:
             try:
@@ -185,7 +184,7 @@ class ToolExperienceLibrary:
         }
         self.experiences.append(exp)
         self._ensure_vector(exp)
-        self._save()  # 持久化（事件驱动增量更新，无周期训练开销）
+        self._save()  # persist immediately
         return exp
 
     def summary(self) -> str:
@@ -193,7 +192,7 @@ class ToolExperienceLibrary:
                ", ".join(f"{e['id']}({len(e['order'])}个工具)" for e in self.experiences)
 
 
-# 全局单例
+# global singleton
 experience_library = ToolExperienceLibrary()
 
 

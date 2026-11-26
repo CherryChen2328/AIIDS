@@ -21,15 +21,15 @@ class PubSubBroker:
 
     def __init__(self, tag_space: Optional[SemanticTagSpace] = None):
         self.tag_space = tag_space or _default_tag_space
-        # 主题名 -> 订阅者回调列表（兼容旧接口）
+        # topic -> subscriber callbacks (legacy interface)
         self.subscribers: Dict[str, List[Callable]] = {}
-        # 主题名 -> 历史消息（兼容旧接口）
+        # topic -> message history (legacy interface)
         self.topic_messages: Dict[str, List[Any]] = {}
-        # 回执记录：tag -> 已回执 agent 集合
+        # receipt log: tag -> set of agents that acknowledged
         self._receipts: Dict[str, set] = {}
         self._lock = threading.Lock()
 
-    # ================= 兼容旧接口：publish / subscribe / get_latest_message =================
+    # ================= legacy interface: publish / subscribe / get_latest_message =================
     def publish(self, topic: str, message: Any) -> None:
         """向主题发布消息（兼容旧接口）。
 
@@ -43,10 +43,10 @@ class PubSubBroker:
             sender = message.get("sender", "unknown") if isinstance(message, dict) else "unknown"
             content = message.get("content", message) if isinstance(message, dict) else message
             desc = message.get("description", f"主题 {topic} 的消息") if isinstance(message, dict) else f"主题 {topic} 的消息"
-            # 登记到语义标签空间（标签即主题名，语义描述用于向量匹配）
+            # register in the semantic tag space (the tag is the topic; desc is embedded)
             self.tag_space.publish(topic, desc, sender, str(content))
 
-        # 分发消息给所有订阅者
+        # fan out to all subscribers
         if topic in self.subscribers:
             for callback in self.subscribers[topic]:
                 try:
@@ -69,11 +69,11 @@ class PubSubBroker:
     def get_all_messages(self, topic: str) -> List[Any]:
         return self.topic_messages.get(topic, [])
 
-    # ================= 语义标签空间接口（机制②新增）=================
+    # ================= semantic tag space interface (Mechanism 2) ==================
     def publish_unit(self, tag: str, description: str, sender: str, content: str) -> dict:
         """发布标准化信息单元 Info={L, D} 到共享语义标签空间。"""
         unit = self.tag_space.publish(tag, description, sender, content)
-        # 同步到旧接口的历史消息
+        # mirror into the legacy message history
         with self._lock:
             if tag not in self.topic_messages:
                 self.topic_messages[tag] = []
@@ -119,5 +119,5 @@ class PubSubBroker:
         return scored[:top_k]
 
 
-# 实例化全局消息代理（单例）
+# global message broker (singleton)
 broker = PubSubBroker()

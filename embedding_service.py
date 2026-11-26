@@ -8,7 +8,7 @@
 对外统一接口：
     embed_texts(texts) -> list[list[float]]
     embed_query(text) -> list[float]
-    cosine_similarity(vec_a, vec_b) -> float  # 论文公式 Sim(·)
+    cosine_similarity(vec_a, vec_b) -> float  # Sim(.) as defined in the paper
 """
 
 import os
@@ -17,13 +17,13 @@ import json
 import time
 from typing import List
 
-# ===================== 配置 =====================
+# ===================== configuration =====================
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "BGE-M3:latest")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "10"))
 
-_ollama_cache = {}  # text -> vector 简单缓存
-_ollama_available = None  # None=未探测, True/False=探测结果
+_ollama_cache = {}  # text -> vector cache
+_ollama_available = None  # None = not probed yet
 
 
 def _ollama_embed(texts: List[str]) -> List[List[float]] | None:
@@ -32,7 +32,7 @@ def _ollama_embed(texts: List[str]) -> List[List[float]] | None:
     if _ollama_available is False:
         return None
 
-    # 命中缓存
+    # cache hit
     uncached = [t for t in texts if t not in _ollama_cache]
     if uncached:
         try:
@@ -57,7 +57,7 @@ def _ollama_embed(texts: List[str]) -> List[List[float]] | None:
     return [_ollama_cache[t] for t in texts]
 
 
-# ===================== 字符级 n-gram 回退实现（零依赖）=====================
+# ===================== character n-gram fallback (zero dependencies) =====================
 def _char_ngrams(text: str, n: int = 2) -> dict:
     """字符级 n-gram 词袋（小写、去空白）。"""
     norm = "".join(text.lower().split())
@@ -77,7 +77,7 @@ def _fallback_embed(text: str) -> List[float]:
     if not grams:
         return []
     total = sum(grams.values())
-    # 按固定字母表排序保证维度一致（ASCII 可打印字符的二元组）
+    # sort the keys so that the dimension stays consistent
     keys = sorted(grams.keys())
     return [grams[k] / total for k in keys]
 
@@ -106,7 +106,7 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     if not vec_a or not vec_b:
         return 0.0
     if len(vec_a) != len(vec_b):
-        # 维度不同：用交集索引计算（仅回退模式可能发生）
+        # different dimensions: compare over the common indices (fallback only)
         d_a = {i: v for i, v in enumerate(vec_a)}
         d_b = {i: v for i, v in enumerate(vec_b)}
         common = set(d_a.keys()) & set(d_b.keys())

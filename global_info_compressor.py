@@ -22,9 +22,9 @@ from model_limits import resolve_max_tokens, thinking_kwargs
 
 load_dotenv()
 
-# ===================== 配置 =====================
+# ===================== configuration =====================
 COMPRESS_MODEL = os.getenv("COMPRESS_MODEL", "deepseek:deepseek-v4-flash")
-COMPRESS_MAX_WORDS = int(os.getenv("COMPRESS_MAX_WORDS", "60"))  # 压缩目标长度（字）
+COMPRESS_MAX_WORDS = int(os.getenv("COMPRESS_MAX_WORDS", "60"))  # target length
 
 
 MAX_TOKENS = resolve_max_tokens(COMPRESS_MODEL)
@@ -75,7 +75,7 @@ def compress_global_info(info_items: List[str], max_words: int = COMPRESS_MAX_WO
         prompt = COMPRESS_PROMPT_TEMPLATE.format(info_text=info_text, max_words=max_words)
         resp = llm.invoke(prompt)
         compressed = (resp.content or "").strip()
-        # 移除可能的多余引号/标记
+        # strip stray quotes or markers
         compressed = compressed.strip('"').strip("'").strip()
         return compressed if compressed else info_text
     except Exception as e:
@@ -96,12 +96,12 @@ def build_global_info_package(scene_feats: dict, compress: bool = True) -> dict:
 
     Returns:
         {
-            "raw": {...},                    # 原始结构化特征
-            "compressed": "...",             # 压缩后的全局信息 I_compress
+            "raw": {...},                    # raw structured features
+            "compressed": "...",             # compressed global information I_compress
             "created_at": ts
         }
     """
-    # 原始文本信息集合 I^T
+    # raw information set I^T
     info_items = []
     for k, v in scene_feats.items():
         if v is not None and str(v) != "":
@@ -120,7 +120,7 @@ def build_global_info_package(scene_feats: dict, compress: bool = True) -> dict:
 
 
 if __name__ == "__main__":
-    # 自测：论文示例（交付周期72小时 → 压缩）
+    # self-test: minimal example
     scene = {
         "总订单交付周期": "72小时",
         "优先级规则": "高优先级订单优先保障交付",

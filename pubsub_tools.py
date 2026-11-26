@@ -19,7 +19,7 @@ from pubsub_broker import broker
 from mechanism_probe import probe
 
 
-# ================= 兼容旧接口 =================
+# ================= legacy interface =================
 @tool
 def publish_message(topic: str, message: str, sender: str) -> str:
     """
@@ -75,7 +75,7 @@ def get_topic_messages(topic: str) -> str:
     return f"主题「{topic}」的历史消息：{messages}"
 
 
-# ================= 机制②新增：语义标签空间通信 =================
+# ================= Mechanism 2: semantic tag space communication =================
 @tool
 def semantic_publish(tag: str, description: str, message: str, sender: str) -> str:
     """

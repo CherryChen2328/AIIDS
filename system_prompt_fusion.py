@@ -26,7 +26,7 @@ load_dotenv()
 
 FUSION_MODEL = os.getenv("FUSION_MODEL", "deepseek:deepseek-v4-flash")
 
-# 最近一次融合实际使用的方法（"llm" / "structural"），供机制探针读取
+# method used by the latest fusion ("llm" / "structural"), read by the probe
 LAST_FUSION_METHOD = {"method": "structural"}
 
 
@@ -44,7 +44,7 @@ def _get_llm():
                                **thinking_kwargs(FUSION_MODEL))
 
 
-# LLM 归一化模板
+# LLM normalisation template
 FUSION_PROMPT_TEMPLATE = """你是提示词工程专家。请将"静态基础提示词"与"动态场景适配提示词"融合为一份统一、无冲突、结构清晰的智能体系统提示词。
 
 要求：
@@ -71,7 +71,7 @@ def structural_fusion(p1: str, p2: dict) -> str:
     p2_text = format_p2(p2)
     if not p2_text:
         return p1
-    return f"{p1}\n\n# ===== 动态场景适配（本任务注入）=====\n{p2_text}"
+    return f"{p1}\n\n# ===== Dynamic scenario adaptation (injected for this task) =====\n{p2_text}"
 
 
 def llm_fusion(p1: str, p2: dict) -> str:
@@ -141,7 +141,7 @@ def fuse_prompts(p1: str, p2: dict, enable_llm: bool = True) -> str:
 
 
 if __name__ == "__main__":
-    # 自测：用 data_agent 的静态提示词 + 一个模拟 P2
+    # self-test: data_agent static prompt + a mock P2
     import sys
     sys.path.insert(0, ".")
     from data_agent.system_prompt import SYSTEM_PROMPT as P1
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         "TaskParam": {"priority_rules": "交期紧迫度优先", "due_range": "3-9周期"},
         "CoopReq": "通过语义标签空间协作，发布 cleaned_data_ready 并回执确认",
     }
-    # 结构化融合（快速验证）
+    # structural fusion (quick check)
     fused = fuse_prompts(P1, P2, enable_llm=False)
     print("=== 结构化融合结果（末尾 600 字）===")
     print(fused[-600:])

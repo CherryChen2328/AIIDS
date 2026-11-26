@@ -20,29 +20,29 @@ class MechanismProbe:
 
     def __init__(self):
         self.start_time = time.time()
-        self.events: List[dict] = []          # 所有机制事件流水
-        # 机制② 计数器
+        self.events: List[dict] = []          # event stream
+        # Mechanism 2 counters
         self.semantic_publishes: List[dict] = []
-        self.semantic_subscribes: List[dict] = []   # 含匹配度 S
+        self.semantic_subscribes: List[dict] = []   # includes the match score S
         self.receipts: List[dict] = []
         self.confirms: List[dict] = []
         self.timeout_checks: List[dict] = []
         self.fallbacks: List[dict] = []
-        # 机制③ 计数器
+        # Mechanism 3 counters
         self.toolchain_matches: List[dict] = []
         self.executability_checks: List[dict] = []
         self.experience_adds: List[dict] = []
-        # 机制① 计数器
+        # Mechanism 1 counters
         self.prompt_fusions: List[dict] = []
-        # FSM 转移序列
+        # FSM transition sequence
         self.fsm_transitions: List[dict] = []
         self.fsm_illegal: List[dict] = []
-        # FSM 监督器（由 main.py 注入，实现探针->状态机联动）
+        # FSM supervisor injected by main.py
         self.fsm_supervisor = None
-        # 发布记录：tag -> sender（用于回执/确认时定位发送方）
+        # publish log: tag -> sender
         self._publish_senders: Dict[str, str] = {}
 
-    # ---------------- 通用记录 ----------------
+    # ---------------- generic recording ----------------
     def _log(self, mechanism: str, event: str, detail: dict) -> None:
         self.events.append({
             "t": round(time.time() - self.start_time, 2),
@@ -51,12 +51,12 @@ class MechanismProbe:
             **detail,
         })
 
-    # ---------------- 机制②：通信 ----------------
+    # ---------------- Mechanism 2: communication ----------------
     def log_publish(self, tag: str, sender: str, description: str) -> None:
         self.semantic_publishes.append({"tag": tag, "sender": sender, "description": description[:60]})
         self._publish_senders[tag] = sender
         self._log("M2", "semantic_publish", {"tag": tag, "sender": sender})
-        # FSM 联动：发送方发布结果 → 结果反馈事件
+        # FSM: a publish is a result-feedback event
         if self.fsm_supervisor:
             self.fsm_supervisor.fire(sender, "result_feedback", f"发布标签 {tag}")
 
@@ -72,7 +72,7 @@ class MechanismProbe:
     def log_receipt(self, tag: str, agent: str, ok: bool) -> None:
         self.receipts.append({"tag": tag, "agent": agent, "ok": ok})
         self._log("M2", "send_receipt", {"tag": tag, "agent": agent, "ok": ok})
-        # FSM 联动：接收方返回回执 → 回执事件（发送方进入等待确认状态）
+        # FSM: a receipt is a receipt event
         if self.fsm_supervisor and ok:
             sender = self._publish_senders.get(tag)
             if sender:
@@ -81,7 +81,7 @@ class MechanismProbe:
     def log_confirm(self, tag: str, agent: str, ok: bool) -> None:
         self.confirms.append({"tag": tag, "agent": agent, "ok": ok})
         self._log("M2", "confirm_task_done", {"tag": tag, "agent": agent, "ok": ok})
-        # FSM 联动：发送方确认任务完成 → 执行确认事件（进入终止态）
+        # FSM: a confirmation is an exec-confirm event
         if self.fsm_supervisor and ok:
             sender = self._publish_senders.get(tag)
             if sender:
@@ -95,7 +95,7 @@ class MechanismProbe:
         self.fallbacks.append({"tag": tag, "target": target, "ok": ok})
         self._log("M2", "route_fallback", {"tag": tag, "target": target, "ok": ok})
 
-    # ---------------- 机制③：工具链 ----------------
+    # ---------------- Mechanism 3: tool chains ----------------
     def log_toolchain(self, agent: str, task_desc: str, matched: bool,
                       exp_id: str, score: float, n_tools: int, threshold: float) -> None:
         self.toolchain_matches.append({
@@ -113,7 +113,7 @@ class MechanismProbe:
         self.experience_adds.append({"exp_id": exp_id, "n_tools": n_tools})
         self._log("M3", "experience_add", {"exp_id": exp_id, "n_tools": n_tools})
 
-    # ---------------- 机制①：提示词 ----------------
+    # ---------------- Mechanism 1: prompts ----------------
     def log_prompt_fusion(self, agent: str, p2_method: str, fusion_method: str,
                           p1_len: int, p2_len: int, fused_len: int) -> None:
         self.prompt_fusions.append({
@@ -132,10 +132,10 @@ class MechanismProbe:
             self.fsm_illegal.append(record)
         self._log("M2-FSM", event, record)
 
-    # ---------------- 验证报告 ----------------
+    # ---------------- verification report ----------------
     def report(self) -> dict:
         """生成《机制运行验证报告》（结构化 JSON，供论文实验记录）。"""
-        # 计算语义订阅匹配统计
+        # aggregate semantic-subscription statistics
         sub_scores = [s for sub in self.semantic_subscribes for s in sub.get("scores", {}).values()]
         return {
             "运行时长(s)": round(time.time() - self.start_time, 2),
@@ -181,12 +181,12 @@ class MechanismProbe:
         rep = self.report()
         print(json.dumps(rep, ensure_ascii=False, indent=2))
         print("=" * 70)
-        # 保存报告文件
+        # save the report
         report_path = f"mechanism_verification_report_{time.strftime('%Y%m%d%H%M%S')}.json"
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(rep, f, ensure_ascii=False, indent=2)
         print(f"报告已保存: {report_path}")
 
 
-# 全局探针单例
+# global probe singleton
 probe = MechanismProbe()

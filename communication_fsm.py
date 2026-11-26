@@ -18,56 +18,56 @@ from typing import Callable, Dict, Optional
 
 class AgentState(str, Enum):
     """Q：智能体通信状态集。"""
-    IDLE = "idle"                    # 空闲
-    TASK_RECEIVING = "task_receiving"  # 任务接收
-    EXECUTING = "executing"          # 任务执行
-    EXCEPTION = "exception"          # 异常处理
-    SUBMITTING = "submitting"        # 结果提交
-    DONE = "done"                    # 终止
+    IDLE = "idle"                    # idle
+    TASK_RECEIVING = "task_receiving"  # receiving a task
+    EXECUTING = "executing"          # executing
+    EXCEPTION = "exception"          # exception handling
+    SUBMITTING = "submitting"        # submitting results
+    DONE = "done"                    # terminal
 
 
 class CommEvent(str, Enum):
     """Σ：触发事件集（三类核心通信消息 + 异常事件）。"""
-    TASK_ASSIGN = "task_assign"        # 任务分配
-    STATE_SYNC = "state_sync"          # 状态同步
-    RESULT_FEEDBACK = "result_feedback"  # 结果反馈
-    COMM_TIMEOUT = "comm_timeout"      # 通信超时（异常）
-    FALLBACK_INSTR = "fallback_instr"  # 回退指令（异常）
-    RECEIPT = "receipt"                # 回执确认（机制② 两阶段确认）
-    EXEC_CONFIRM = "exec_confirm"      # 执行确认（机制② 两阶段确认）
+    TASK_ASSIGN = "task_assign"        # task assignment
+    STATE_SYNC = "state_sync"          # state synchronisation
+    RESULT_FEEDBACK = "result_feedback"  # result feedback
+    COMM_TIMEOUT = "comm_timeout"      # communication timeout (exception)
+    FALLBACK_INSTR = "fallback_instr"  # fallback instruction (exception)
+    RECEIPT = "receipt"                # receipt (phase 1)
+    EXEC_CONFIRM = "exec_confirm"      # execution confirmation (phase 2)
 
 
-# δ：状态转移函数（Q × Σ → Q）
+# delta: transition function (Q x Sigma -> Q)
 TRANSITION_TABLE: Dict[AgentState, Dict[CommEvent, AgentState]] = {
     AgentState.IDLE: {
-        CommEvent.TASK_ASSIGN: AgentState.TASK_RECEIVING,   # 空闲 + 任务分配 → 任务接收
-        CommEvent.STATE_SYNC: AgentState.IDLE,              # 空闲 + 状态同步 → 空闲
+        CommEvent.TASK_ASSIGN: AgentState.TASK_RECEIVING,   # idle + task_assign -> receiving
+        CommEvent.STATE_SYNC: AgentState.IDLE,              # idle + state_sync -> idle
     },
     AgentState.TASK_RECEIVING: {
-        CommEvent.TASK_ASSIGN: AgentState.TASK_RECEIVING,   # 任务分配确认 → 仍接收
-        CommEvent.STATE_SYNC: AgentState.EXECUTING,         # 确认就绪 → 执行
-        CommEvent.RECEIPT: AgentState.TASK_RECEIVING,       # 回执 → 仍接收
-        CommEvent.RESULT_FEEDBACK: AgentState.SUBMITTING,   # 边接收边提交（异步场景）
+        CommEvent.TASK_ASSIGN: AgentState.TASK_RECEIVING,   # task_assign while receiving -> receiving
+        CommEvent.STATE_SYNC: AgentState.EXECUTING,         # state_sync -> executing
+        CommEvent.RECEIPT: AgentState.TASK_RECEIVING,       # receipt -> receiving
+        CommEvent.RESULT_FEEDBACK: AgentState.SUBMITTING,   # submit while still receiving (async)
     },
     AgentState.EXECUTING: {
-        CommEvent.RESULT_FEEDBACK: AgentState.SUBMITTING,   # 执行完成反馈 → 提交
-        CommEvent.STATE_SYNC: AgentState.EXECUTING,         # 中间状态同步 → 继续执行
-        CommEvent.RECEIPT: AgentState.EXECUTING,            # 执行中收到回执 → 继续执行
-        CommEvent.TASK_ASSIGN: AgentState.EXECUTING,        # 执行中追加任务 → 继续执行
-        CommEvent.COMM_TIMEOUT: AgentState.EXCEPTION,       # 通信超时 → 异常处理
+        CommEvent.RESULT_FEEDBACK: AgentState.SUBMITTING,   # result_feedback -> submitting
+        CommEvent.STATE_SYNC: AgentState.EXECUTING,         # state_sync -> executing
+        CommEvent.RECEIPT: AgentState.EXECUTING,            # receipt -> executing
+        CommEvent.TASK_ASSIGN: AgentState.EXECUTING,        # task_assign -> executing
+        CommEvent.COMM_TIMEOUT: AgentState.EXCEPTION,       # communication timeout -> exception
     },
     AgentState.EXCEPTION: {
-        CommEvent.FALLBACK_INSTR: AgentState.EXECUTING,     # 收到回退指令 → 恢复执行
-        CommEvent.TASK_ASSIGN: AgentState.TASK_RECEIVING,   # 重新分配 → 重新接收
-        CommEvent.RECEIPT: AgentState.EXCEPTION,            # 回执 → 仍异常
+        CommEvent.FALLBACK_INSTR: AgentState.EXECUTING,     # fallback instruction -> resume executing
+        CommEvent.TASK_ASSIGN: AgentState.TASK_RECEIVING,   # reassignment -> receiving again
+        CommEvent.RECEIPT: AgentState.EXCEPTION,            # receipt -> still exception
     },
     AgentState.SUBMITTING: {
-        CommEvent.RECEIPT: AgentState.SUBMITTING,           # 发送方回执 → 等待确认
-        CommEvent.RESULT_FEEDBACK: AgentState.SUBMITTING,   # 发布多个标签（重复结果反馈，自循环）
-        CommEvent.EXEC_CONFIRM: AgentState.DONE,            # 接收方执行确认 → 终止
-        CommEvent.COMM_TIMEOUT: AgentState.EXCEPTION,       # 超时未确认 → 异常
+        CommEvent.RECEIPT: AgentState.SUBMITTING,           # sender receipt -> awaiting confirmation
+        CommEvent.RESULT_FEEDBACK: AgentState.SUBMITTING,   # several tags published (self-loop)
+        CommEvent.EXEC_CONFIRM: AgentState.DONE,            # execution confirmation -> done
+        CommEvent.COMM_TIMEOUT: AgentState.EXCEPTION,       # timeout -> exception
     },
-    AgentState.DONE: {},                                    # 终止态无转移
+    AgentState.DONE: {},                                    # terminal state: no transitions
 }
 
 
@@ -121,13 +121,13 @@ class CommunicationFSM:
 
 
 if __name__ == "__main__":
-    # 自测：data_agent 完整通信生命周期
+    # self-test: full communication lifecycle of data_agent
     fsm = CommunicationFSM("data_agent")
     print("初始:", fsm.state.value)
-    fsm.trigger(CommEvent.TASK_ASSIGN, "planning_agent 分配清洗任务")     # idle -> task_receiving
-    fsm.trigger(CommEvent.STATE_SYNC, "确认接收")                          # task_receiving -> executing
-    fsm.trigger(CommEvent.RESULT_FEEDBACK, "清洗完成发布 cleaned_data_ready")  # executing -> submitting
-    fsm.trigger(CommEvent.RECEIPT, "scenario_agent 回执")                  # submitting -> submitting
-    fsm.trigger(CommEvent.EXEC_CONFIRM, "scenario_agent 确认执行")         # submitting -> done
+    fsm.trigger(CommEvent.TASK_ASSIGN, "planning_agent assigns the cleaning task")     # idle -> task_receiving
+    fsm.trigger(CommEvent.STATE_SYNC, "acknowledge receipt")                          # task_receiving -> executing
+    fsm.trigger(CommEvent.RESULT_FEEDBACK, "cleaning done, publish cleaned_data_ready")  # executing -> submitting
+    fsm.trigger(CommEvent.RECEIPT, "scenario_agent receipt")                  # submitting -> submitting
+    fsm.trigger(CommEvent.EXEC_CONFIRM, "scenario_agent confirms execution")         # submitting -> done
     print("最终:", fsm.state.value, "| 终止:", fsm.is_terminal)
     print(fsm.summary())

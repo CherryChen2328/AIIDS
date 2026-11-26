@@ -24,8 +24,8 @@ load_dotenv()
 
 P2_MODEL = os.getenv("P2_MODEL", "deepseek:deepseek-v4-flash")
 
-# 场景特征提取模板：从数据文件/全局信息中提取 P2 所需的场景特征
-# 注意：JSON 示例中的花括号用 {{ }} 转义（避免与 .format() 冲突）
+# Scene-feature extraction template: derive the P2 fields from the data.
+# Braces in the JSON example are escaped as {{ }} because of .format().
 SCENE_FEAT_EXTRACT_PROMPT = """你是多工厂晶圆调度系统的场景分析师。请根据以下数据描述与全局信息，提取当前调度场景的关键特征。
 
 请严格按 JSON 格式输出，包含以下字段：
@@ -57,7 +57,7 @@ SCENE_FEAT_EXTRACT_PROMPT = """你是多工厂晶圆调度系统的场景分析�
 """
 
 
-# 推理模型需预留 reasoning token，取值过小会导致 content 为空
+# Reasoning models need room for reasoning tokens, or content comes back empty.
 MAX_TOKENS = resolve_max_tokens(P2_MODEL)
 
 
@@ -87,7 +87,7 @@ def extract_scene_features(global_info: str, data_desc: str) -> Dict:
         prompt = SCENE_FEAT_EXTRACT_PROMPT.format(global_info=global_info or "无", data_desc=data_desc or "无")
         resp = llm.invoke(prompt)
         text = (resp.content or "").strip()
-        # 提取 JSON（兼容模型输出带 ```json 包裹）
+# Extract the JSON, tolerating a fenced code block.
         if "```" in text:
             text = text.split("```")[1]
             if text.startswith("json"):
@@ -120,13 +120,13 @@ def build_p2(global_info: str = "", data_desc: str = "",
         P2 字典（含 created_at 时间戳）
     """
     if base_p2 is not None:
-        # 复用共享 P2 基础（深拷贝，避免污染共享对象）
+        # Start from the shared P2 (deep copy so the shared object is not mutated).
         import copy
         p2 = copy.deepcopy(base_p2)
     elif use_llm:
         p2 = extract_scene_features(global_info, data_desc)
-        # 标记是否为 LLM 成功生成（extract_scene_features 失败时返回降级默认值，无法区分，
-        # 这里通过检查关键字段是否被填充来判断；更稳妥：extract 内部标记）
+        # Flag whether the features came from the LLM or from the fallback, by
+        # checking whether the key field was filled in.
         p2["_llm_generated"] = p2.get("SceneFeat", {}).get("total_orders") is not None
     else:
         p2 = {
@@ -136,21 +136,11 @@ def build_p2(global_info: str = "", data_desc: str = "",
             "CoopReq": "通过语义标签空间协作，发布/订阅对应主题并回执确认",
         }
         p2["_llm_generated"] = False
-    # 合并外部已知特征。
-    #
-    # 修复记录：原实现为
-    #     if k == "SceneFeat": ...（按子键补充）
-    #     elif k not in p2 or p2[k] in (None, ""): p2[k] = v
-    # 当 base_p2（共享 P2）里已存在 TaskParam={}、Workflow_f=默认串、CoopReq=默认串 时，
-    # 条件 k not in p2 为假、空字典 in (None, "") 也为假，于是 extra_feats 传入的
-    # TaskParam / Workflow_f / CoopReq 被【整段静默丢弃】。
-    # 后果：机制①的 P2 实际只带了 SceneFeat，各智能体拿不到任务参数与协作要求，
-    # 两阶段提示词因而在消融中看不出作用。
-    #
-    # 现按类型合并：
-    #   - dict 且 k == "SceneFeat"：LLM 提取结果优先，外部特征只补缺失项
-    #   - dict（TaskParam 等）：以显式传入的任务参数为准（其内部键覆盖共享值）
-    #   - 标量（Workflow_f / CoopReq）：以显式传入的为准（这是各智能体的差异化内容）
+    # Merge the externally supplied features by type:
+    #   - SceneFeat: LLM-extracted values win, external ones only fill the gaps
+    #   - TaskParam and other dicts: external values win
+    #   - scalars (Workflow_f / CoopReq): external values win, as they carry the
+    #     per-agent differentiation
     if extra_feats:
         for k, v in extra_feats.items():
             if isinstance(v, dict):
@@ -158,9 +148,9 @@ def build_p2(global_info: str = "", data_desc: str = "",
                 cur = dict(cur) if isinstance(cur, dict) else {}
                 v_clean = {kk: vv for kk, vv in v.items() if vv is not None}
                 if k == "SceneFeat":
-                    p2[k] = {**v_clean, **cur}          # LLM 特征优先
+                    p2[k] = {**v_clean, **cur}          # LLM features win
                 else:
-                    p2[k] = {**cur, **v_clean}          # 任务参数以外部为准
+                    p2[k] = {**cur, **v_clean}          # external task parameters win
             else:
                 if v is None or v == "":
                     continue
@@ -197,7 +187,7 @@ def format_p2(p2: Dict) -> str:
             lines.append(f"- 输出示例: {exam.get('out', '')}")
             lines.append(f"- 效果反馈: {exam.get('res', '')}")
         lines.append("- 重要：请遵循经验链的方法论与关键设计（如个体编码、解码器复用、算法组件），提升方案质量")
-        # 经验链内置代码模板：优先复用，避免从零编写与试错
+        # Reuse the built-in code template from the experience chain when available.
         if exp_ref.get("code_template"):
             lines.append("\n【经验链内置代码模板 code_template（可直接复用，只需适配数据加载）】")
             lines.append(exp_ref["code_template"])

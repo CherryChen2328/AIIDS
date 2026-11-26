@@ -28,7 +28,7 @@ class TokenCounter(BaseCallbackHandler):
         self.stats: Dict[str, dict] = defaultdict(lambda: {
             "calls": 0, "input_tokens": 0, "output_tokens": 0,
             "total_tokens": 0, "durations": [], "details": [],
-            "tool_counts": Counter(),   # 本智能体各工具的调用次数
+            "tool_counts": Counter(),   # per-tool call count for this agent
         })
         self._start_times: Dict[str, float] = {}
 
@@ -51,7 +51,7 @@ class TokenCounter(BaseCallbackHandler):
         agent, t0 = self._start_times.pop(run_id)
         duration = time.time() - t0
 
-        # 尝试从 usage_metadata 读取精确 token 数
+        # read exact counts from usage_metadata
         input_tokens = output_tokens = total_tokens = None
         try:
             usage = getattr(response, "llm_output", None) or {}
@@ -72,7 +72,7 @@ class TokenCounter(BaseCallbackHandler):
         except Exception:
             pass
 
-        # 无 usage 信息时估算（中文按 1 字≈1 token 粗估）
+        # estimate when usage metadata is unavailable
         if input_tokens is None or output_tokens is None:
             try:
                 prompts = kwargs.get("prompts") or []
@@ -88,9 +88,8 @@ class TokenCounter(BaseCallbackHandler):
                 output_tokens = output_tokens or 0
                 total_tokens = total_tokens or (input_tokens + output_tokens)
 
-        # 记录本次调用请求了哪些工具、正文/推理各多少字符。
-        # 用途：定位"输入很大、输出很小"的轻量往返到底在反复调什么
-        # （实测 data_agent 出现过 26 次调用 / 26.7 万输入 token / 单次仅 1.4s 的异常模式）。
+        # record which tools were requested and the text / reasoning sizes
+        # used to locate repeated lightweight round trips
         tools_called, text_chars, reasoning_chars = [], 0, 0
         try:
             msg = response.generations[0][0].message
@@ -128,7 +127,7 @@ class TokenCounter(BaseCallbackHandler):
             "reasoning_chars": reasoning_chars,
         })
 
-    # ---------------- 报告 ----------------
+    # ---------------- report ----------------
     def report(self) -> dict:
         rep = {}
         for agent, s in sorted(self.stats.items()):
@@ -159,7 +158,7 @@ class TokenCounter(BaseCallbackHandler):
             print(f"{agent:<16}{s['调用次数']:>6}{s['输入Token总计']:>12}{s['输出Token总计']:>12}"
                   f"{s['Token总计']:>12}{s['总耗时(s)']:>10}")
         print("-" * 70)
-        # 各智能体的工具调用构成：定位"输入大、输出小"的轻量往返与重复调用
+        # tool-call composition per agent
         for agent, s in rep.items():
             tc = s.get("工具调用统计") or {}
             if not tc:
@@ -173,12 +172,12 @@ class TokenCounter(BaseCallbackHandler):
         total_calls = sum(s["调用次数"] for s in rep.values())
         print(f"{'合计':<16}{total_calls:>6}{total_in:>12}{total_out:>12}{total_in + total_out:>12}")
         print("=" * 70)
-        # 保存报告
+        # save report
         report_path = f"token_usage_report_{time.strftime('%Y%m%d%H%M%S')}.json"
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(rep, f, ensure_ascii=False, indent=2)
         print(f"报告已保存: {report_path}")
 
 
-# 全局单例
+# global singleton
 token_counter = TokenCounter()

@@ -19,7 +19,7 @@ AGENT_NAMES = ["data_agent", "scenario_agent", "decision_agent", "planning_agent
 class FSMSupervisor:
     def __init__(self, agent_names: list = None):
         self.fsms = {name: CommunicationFSM(name) for name in (agent_names or AGENT_NAMES)}
-        self._pending_tasks = {}  # tool_call_id -> agent_name（planning 派发的 task）
+        self._pending_tasks = {}  # tool_call_id -> agent_name (task dispatched by the planner)
 
     def fire(self, agent: str, event: str, detail: str = ""):
         """触发状态事件（供机制探针调用）。"""
@@ -32,33 +32,33 @@ class FSMSupervisor:
             return
         prev = fsm.state
         next_state, valid = fsm.trigger(ev, detail)
-        # 记录转移（valid 与否都记录；自循环合法转移也记录）
+        # record every transition, valid or not, including legal self-loops
         from mechanism_probe import probe
         probe.log_fsm(agent, prev.value, next_state.value, event, valid)
 
-    # ---------------- 主循环挂钩：识别 planning 的 task 派发 ----------------
+    # ---------------- main-loop hook: detect planner task dispatch ----------------
     def observe_message(self, message) -> None:
         """观察 agent.stream 中的每条消息，识别任务分配/完成事件。"""
         msg_type = getattr(message, "type", "")
-        # AIMessage 中的 tool_calls（planning 调用 task 工具）
+        # tool_calls carried by the AIMessage (the planner invoking the task tool)
         tool_calls = getattr(message, "tool_calls", None) or []
         has_tool_calls = len(tool_calls) > 0
 
-        # planning_agent 状态驱动：
+        # drive the planner state:
         if msg_type == "ai" and has_tool_calls:
-            # planning 开始执行（write_todos/task 等）→ 任务接收 → 执行中
+            # planner starts working (write_todos / task): receiving -> executing
             if self.fsms["planning_agent"].state.value == "idle":
                 self.fire("planning_agent", "task_assign", "planning 开始协调")
             if self.fsms["planning_agent"].state.value == "task_receiving":
                 self.fire("planning_agent", "state_sync", "planning 确认任务清单")
         elif msg_type == "ai" and not has_tool_calls:
-            # planning 输出最终汇总（无工具调用）→ 提交 → 完成
+            # planner emits the final summary (no tool calls): submitting -> done
             if self.fsms["planning_agent"].state.value in ("executing", "task_receiving"):
                 self.fire("planning_agent", "result_feedback", "planning 汇总完成")
             if self.fsms["planning_agent"].state.value == "submitting":
                 self.fire("planning_agent", "exec_confirm", "planning 任务终止")
 
-        # 子智能体 task 派发/完成事件
+        # sub-agent task dispatch / completion events
         for tc in tool_calls:
             name = tc.get("name", "")
             if name == "task":
@@ -67,10 +67,10 @@ class FSMSupervisor:
                 if sub_type in self.fsms:
                     self._pending_tasks[tc.get("id")] = sub_type
                     self.fire(sub_type, "task_assign", f"planning 派发任务: {args.get('description', '')[:50]}")
-                    # task 工具同步执行：派发后自动进入执行态（task_receiving -> executing）
+                    # the task tool runs synchronously: enter executing right after dispatch
                     if self.fsms[sub_type].state.value == "task_receiving":
                         self.fire(sub_type, "state_sync", "任务接收确认，进入执行")
-        # ToolMessage（task 工具返回 → 子智能体执行完成）
+        # ToolMessage: the task tool returned, i.e. the sub-agent finished
         if msg_type == "tool" and getattr(message, "name", "") == "task":
             sub_type = self._pending_tasks.pop(getattr(message, "tool_call_id", ""), None)
             if sub_type:
