@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software or data, please cite the paper below."
+title: "AIIDS workflow demonstration release"
+type: software
+authors:
+  - name: "AIIDS Authors"
+license: LicenseRef-AIIDS-Academic
+references:
+  - type: article
+    title: "AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling"
+    journal: "Journal of Manufacturing Systems"
+    volume: 90
+    pages: "126-144"
+    year: 2027
+    month: 2

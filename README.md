@@ -2,6 +2,8 @@
 
 **AIIDS (Adaptive Intelligent Industrial Decision System)**
 
+> 📄 **使用本仓库须引用**：*AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling*, **Journal of Manufacturing Systems**, Vol. 90, Feb. 2027, pp. 126–144. 详见 [第 7 节](#7-版权与引用--license-and-citation)。
+
 > ## ⚠️ 声明 / Disclaimer
 >
 > 本仓库是一个 **流程演示版本（workflow demonstration release）**，目的是让读者更清晰地理解 AIIDS 的**整体运转流程**——即「数据清洗 → 场景建模 → 决策优化」三阶段闭环，以及三大核心机制如何在这条流水线上协同工作。
@@ -140,6 +142,31 @@ python main.py
 | `deepagents` / `langchain` | 智能体框架 | ✅ |
 | Ollama + BGE-M3 | 语义向量化 | 建议（缺失时降级） |
 
-## 7. 许可与引用
+## 7. 版权与引用 / License and Citation
 
-如本仓库对您的研究有帮助，请引用对应论文。完整实验数据与统计结果请以论文为准。
+**版权所有 © 2027. 保留所有权利。**
+
+本仓库的代码、数据与文档仅供**学术研究与教学**使用。
+
+> **⚠️ 使用条件：任何基于本仓库代码、数据或方法的工作（论文、学位论文、技术报告、开源项目等），必须在成果中明确引用下列论文。**
+
+### 引用格式
+
+> **AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling**
+> *Journal of Manufacturing Systems*, Volume 90, February 2027, Pages 126–144.
+
+### BibTeX
+
+```bibtex
+@article{aiids2027,
+  title   = {AIIDS: Multi-AI agent driven industrial data space framework for
+             multi-factory wafer fabrication order allocation and scheduling},
+  journal = {Journal of Manufacturing Systems},
+  volume  = {90},
+  pages   = {126--144},
+  year    = {2027},
+  month   = {February}
+}
+```
+
+商业用途请先联系作者获得书面许可。完整实验数据与统计结果以论文为准。

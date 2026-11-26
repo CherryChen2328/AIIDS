@@ -1,0 +1,51 @@
+Copyright (c) 2027. All rights reserved.
+
+AIIDS: Multi-AI agent driven industrial data space framework for
+multi-factory wafer fabrication order allocation and scheduling
+Journal of Manufacturing Systems, Volume 90, February 2027, Pages 126-144.
+
+--------------------------------------------------------------------------------
+TERMS OF USE
+--------------------------------------------------------------------------------
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software, data and associated documentation (the "Work"), to use, copy,
+modify and distribute the Work for ACADEMIC RESEARCH AND TEACHING purposes,
+subject to the following conditions:
+
+1. ATTRIBUTION / CITATION (MANDATORY)
+   Any publication, thesis, technical report, or publicly released derivative
+   work that uses the Work, in whole or in part, or that builds upon the
+   methods implemented herein, MUST cite the following paper:
+
+       AIIDS: Multi-AI agent driven industrial data space framework for
+       multi-factory wafer fabrication order allocation and scheduling,
+       Journal of Manufacturing Systems, Volume 90, February 2027,
+       Pages 126-144.
+
+2. The above copyright notice, this list of conditions and the citation
+   requirement shall be included in all copies or substantial portions of
+   the Work.
+
+3. COMMERCIAL USE
+   Commercial use of the Work requires prior written permission from the
+   copyright holder.
+
+--------------------------------------------------------------------------------
+DISCLAIMER
+--------------------------------------------------------------------------------
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS IN THE WORK.
+
+--------------------------------------------------------------------------------
+NOTE ON SCOPE
+--------------------------------------------------------------------------------
+
+This repository is a WORKFLOW DEMONSTRATION RELEASE. It is intended to make the
+end-to-end operation of the AIIDS framework easier to follow. It does NOT
+represent the complete implementation of the system; see README.md for details.
