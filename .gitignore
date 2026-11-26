@@ -1,0 +1,24 @@
+# 环境变量（务必不要提交）
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 运行产物
+output/
+*.log
+mechanism_verification_report_*.json
+token_usage_report_*.json
+decision_result.json
+scenario_model.py
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

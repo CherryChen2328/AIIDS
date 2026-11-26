@@ -1,0 +1,8 @@
+# AIIDS 流程演示版依赖
+deepagents
+langchain
+langchain-core
+python-dotenv
+pandas
+numpy
+openpyxl
