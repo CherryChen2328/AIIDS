@@ -1,156 +1,154 @@
-# AIIDS — 自适应多智能体晶圆订单分配与调度系统
+# AIIDS — Adaptive Multi-Agent Framework for Multi-Factory Wafer Order Allocation and Scheduling
 
 **AIIDS (Adaptive Intelligent Industrial Decision System)**
 
-> 📄 **使用本仓库须引用**：*AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling*, **Journal of Manufacturing Systems**, Vol. 90, Feb. 2027, pp. 126–144. 详见 [第 7 节](#7-版权与引用--license-and-citation)。
-
-> ## ⚠️ 声明 / Disclaimer
->
-> 本仓库是一个 **流程演示版本（workflow demonstration release）**，目的是让读者更清晰地理解 AIIDS 的**整体运转流程**——即「数据清洗 → 场景建模 → 决策优化」三阶段闭环，以及三大核心机制如何在这条流水线上协同工作。
->
-> **本仓库不代表系统的完整实现。** 以下内容**未包含**在内：
->
-> - 大规模实验框架与消融实验（`run_ablation.py`、`run_batch.py` 及 60 轮次的原始记录）
-> - 参数标定流程（L9 正交实验、阈值网格搜索）与统计显著性分析脚本
-> - Transformer 规则选择对照基线及其训练权重
-> - 多规模算例集（本仓库仅提供 **1 个最小案例**，见 `case/`）
-> - 工业部署组件、数据后处理与可视化脚本
->
-> 论文中报告的完整实验结果、参数取值与统计结论，**请以论文为准**。本仓库的目标是「**可读**」——让读者看懂流程与机制，而非「可复现论文中的全部数字」。
->
-> ---
->
-> This repository is a **workflow demonstration release** intended to make the end-to-end operation of AIIDS — the three-stage pipeline (data cleaning → scenario modelling → decision optimisation) and how the three mechanisms cooperate along it — easier to follow. **It does not represent the complete implementation of the system.** Full experiment harnesses, parameter-calibration and statistical-analysis scripts, comparison baselines, additional case sets and deployment components are not included. Please refer to the paper for the complete results.
+> 📄 **If you use this repository, please cite:**
+> *AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling*,
+> **Journal of Manufacturing Systems**, Volume 90, February 2027, Pages 126–144.
+> See [Section 7](#7-license-and-citation).
 
 ---
 
-## 1. 系统架构
+> ## ⚠️ Disclaimer
+>
+> This repository is a **workflow demonstration release**. It is intended to help readers follow the overall operation flow of AIIDS — the three-stage pipeline (data cleaning → scenario modelling → decision optimisation) and how the three core mechanisms cooperate along it.
+>
+> **It does not represent the complete implementation of the system.** The goal of this release is to make the system's operation flow easier to understand.
+
+---
+
+## 1. System Architecture
 
 ```
-用户需求 → planning_agent（规划智能体）
-              ├── data_agent     （数据清洗智能体）
-              ├── scenario_agent （场景建模智能体）
-              └── decision_agent （决策优化智能体）
-                   ↓
-         共享语义标签空间（pubsub_broker + semantic_tag_space）
+User request → planning_agent  (orchestration)
+                  ├── data_agent      (data cleaning)
+                  ├── scenario_agent  (scenario modelling)
+                  └── decision_agent  (decision optimisation)
+                       ↓
+        Shared semantic tag space (pubsub_broker + semantic_tag_space)
 ```
 
-三阶段流水线通过语义标签 `data2scenario → scenario2decision → decision_ready` 衔接。
+The three stages are chained by semantic tags:
+`data2scenario → scenario2decision → decision_ready`.
 
-## 2. 三大核心机制
+## 2. Core Mechanisms
 
-### 机制① 两阶段系统提示词
-- 静态提示词 **P₁ = {Role, Workflow, OutReq, ValRule}**（跨场景常量）
-- 动态提示词 **P₂ = {SceneFeat, Workflow_f, TaskParam, CoopReq}**（场景相关参数）
-- 语义融合 **P = F(P₁, P₂)**：由 LLM 完成逻辑拼接与语义归一化
+### Mechanism ① — Two-Stage System Prompt
+- **Static prompt** **P₁ = {Role, Workflow, OutReq, ValRule}** — constants shared across scenarios.
+- **Dynamic prompt** **P₂ = {SceneFeat, Workflow_f, TaskParam, CoopReq}** — scenario-specific parameters.
+- **Semantic fusion** **P = F(P₁, P₂)**: an LLM performs logical composition and semantic normalisation of the two stages.
 
-实现：`dynamic_prompt_generator.py`、`system_prompt_fusion.py`
+Implementation: `dynamic_prompt_generator.py`, `system_prompt_fusion.py`
 
-### 机制② 自适应分层协商与通信
-- 全局关键信息压缩广播：**I_compress = LLM_compress(I^T)**
-- 共享语义标签空间：X2Y 定向标签 + 语义匹配度 **S = Sim(Embed(L), Embed(L'))**，阈值 τ
-- 两阶段确认（发布 → 回执 → 执行确认）+ 超时检测 + 规划智能体异常回退
-- 通信有限状态机 **M = {Q, q₀, q_f, Σ, δ}**
+### Mechanism ② — Adaptive Hierarchical Negotiation and Communication
+- **Global key-information compression broadcast**: **I_compress = LLM_compress(I^T)**
+- **Shared semantic tag space**: X2Y directional tags with match score **S = Sim(Embed(L), Embed(L'))** under threshold τ.
+- **Two-phase confirmation** (publish → receipt → execution confirmation), plus timeout detection and planner-side fallback dispatch.
+- **Communication finite-state machine** **M = {Q, q₀, q_f, Σ, δ}**.
 
-实现：`pubsub_broker.py`、`pubsub_tools.py`、`semantic_tag_space.py`、`global_info_compressor.py`、`communication_fsm.py`、`fsm_supervisor.py`
+Implementation: `semantic_tag_space.py`, `pubsub_broker.py`, `pubsub_tools.py`, `global_info_compressor.py`, `communication_fsm.py`, `fsm_supervisor.py`
 
-### 机制③ 动态工具链调用
-- 工具使用经验库 **E = {E_desc, E_order, E_exam}**（语义向量检索，RAG）
-- 域感知检索：按 agent 域过滤 + 语义匹配度选择工具链，阈值 τ_e
-- 可执行性判定 **Φ(Eᵢ)** + 事件驱动增量入库（Sim_max < τ_e 时自主构建新链）
+### Mechanism ③ — Dynamic Tool-Chain Invocation
+- **Tool-usage experience library** **E = {E_desc, E_order, E_exam}**, retrieved by semantic vector similarity (RAG).
+- **Domain-aware retrieval**: candidates are filtered by the requesting agent's domain, then ranked by semantic similarity under threshold τ_e.
+- **Executability test** **Φ(Eᵢ)** with event-driven incremental ingestion: when Sim_max < τ_e the agent autonomously constructs a new chain, which is admitted only if Φ(Eᵢ) = 1.
 
-实现：`tool_experience_library.py`、`tool_experience_data.json`
+Implementation: `tool_experience_library.py`, `tool_experience_data.json`
 
-## 3. 目录结构
+## 3. Repository Structure
 
 ```
 AIIDS/
-├── main.py                       # 主入口：规划智能体编排 + 三大机制装配
-├── KTPO.py                       # 决策优化算法（知识引导双种群 NSGA-II + DE）
-├── dynamic_prompt_generator.py   # 机制①：动态提示词 P₂ 生成
-├── system_prompt_fusion.py       # 机制①：F(P₁, P₂) 语义融合
-├── global_info_compressor.py     # 机制②：全局信息压缩广播
-├── semantic_tag_space.py         # 机制②：共享语义标签空间（匹配度 S + τ）
-├── pubsub_broker.py              # 机制②：消息代理（回执 / 超时 / 异常回退）
-├── pubsub_tools.py               # 机制②：通信工具集（publish/subscribe/receipt）
-├── communication_fsm.py          # 机制②：通信有限状态机
-├── fsm_supervisor.py             # 机制②：FSM 监督器（接入执行循环）
-├── tool_experience_library.py    # 机制③：经验库（检索 / Φ 验证 / 增量更新）
-├── tool_experience_data.json     # 机制③：初始经验库数据
-├── embedding_service.py          # Embed(·)：Ollama BGE-M3，失败时字符 n-gram 回退
-├── model_limits.py               # 按模型钳制输出预算 / 关闭思考模式
-├── token_counter.py              # Token 用量统计
-├── mechanism_probe.py            # 机制运行探针（输出验证报告）
-├── planning_agent/               # 规划智能体提示词
-├── data_agent/                   # 数据清洗智能体提示词
-├── scenario_agent/               # 场景建模智能体提示词
-├── decision_agent/               # 决策优化智能体提示词
+├── main.py                       # Entry point: planner orchestration + mechanism wiring
+├── KTPO.py                       # Decision optimiser (knowledge-guided dual-population NSGA-II + DE)
+├── dynamic_prompt_generator.py   # Mechanism ①: dynamic prompt P₂ generation
+├── system_prompt_fusion.py       # Mechanism ①: semantic fusion F(P₁, P₂)
+├── global_info_compressor.py     # Mechanism ②: global information compression and broadcast
+├── semantic_tag_space.py         # Mechanism ②: shared semantic tag space (match score S + τ)
+├── pubsub_broker.py              # Mechanism ②: message broker (receipts / timeout / fallback)
+├── pubsub_tools.py               # Mechanism ②: communication tool set (publish / subscribe / receipt)
+├── communication_fsm.py          # Mechanism ②: communication finite-state machine
+├── fsm_supervisor.py             # Mechanism ②: FSM supervisor attached to the execution loop
+├── tool_experience_library.py    # Mechanism ③: experience library (retrieval / Φ check / incremental update)
+├── tool_experience_data.json     # Mechanism ③: initial experience-library data
+├── embedding_service.py          # Embed(·): Ollama BGE-M3, with character n-gram fallback
+├── model_limits.py               # Per-model output-budget clamping and thinking-mode control
+├── token_counter.py              # Token-usage accounting
+├── mechanism_probe.py            # Mechanism probe (emits the verification report)
+├── planning_agent/               # Planner prompt
+├── data_agent/                   # Data-cleaning agent prompt
+├── scenario_agent/               # Scenario-modelling agent prompt
+├── decision_agent/               # Decision-optimisation agent prompt
 ├── case/
-│   └── case.xlsx                 # 最小示例案例（14 订单 / 3 工厂 / 5 工艺节点）
-├── .env.example                  # 环境变量模板
+│   └── case.xlsx                 # Minimal example case (14 orders / 3 fabs / 5 process nodes)
+├── .env.example                  # Environment-variable template
 ├── requirements.txt
+├── CITATION.cff
+├── LICENSE
 └── README.md
 ```
 
-## 4. 示例案例（`case/case.xlsx`）
+## 4. Example Case (`case/case.xlsx`)
 
-为便于快速跑通全流程，仓库只附一个**最小案例**：
+To make the full pipeline runnable in a few minutes, the repository ships a single **minimal case**:
 
-| 项目 | 规模 |
+| Item | Scale |
 |---|---|
-| 订单数 | 14 |
-| 晶圆厂 | 3（F1 / F2 / F3） |
-| 工艺节点 | 5 类（130 / 90 / 55 / 28 nm） |
-| 订单批量 | 500 ~ 1000 片 |
-| 处理时间 | 1 ~ 3 周期 T |
-| 交付周期 | 4 ~ 8 T |
+| Orders | 14 |
+| Wafer fabs | 3 (F1 / F2 / F3) |
+| Process nodes | 5 (130 / 90 / 55 / 28 nm) |
+| Order batch size | 500 – 1000 wafers |
+| Processing time | 1 – 3 cycles (T) |
+| Delivery cycle | 4 – 8 T |
 
-字段与原始数据一致：`订单编号 / 工艺节点 / 订单批量（片）/ 处理时间（周期T）/ 可处理工厂 / 交付时间（周期T）`。
+The schema matches the original data:
+`Order ID / Process node / Batch size (wafers) / Processing time (cycles T) / Eligible fabs / Delivery cycle (cycles T)`.
 
-## 5. 快速开始
+## 5. Quick Start
 
 ```bash
-# 1) 安装依赖
+# 1) Install dependencies
 pip install -r requirements.txt
 
-# 2) 配置环境变量（至少填 DEEPSEEK_API_KEY）
+# 2) Configure environment variables (at minimum DEEPSEEK_API_KEY)
 cp .env.example .env
-#    编辑 .env，填入你的 API key
+#    then edit .env and fill in your API key
 
-# 3) 可选：本地嵌入模型（机制② 语义匹配用）
-#    Ollama + BGE-M3；未启动时自动回退到字符 n-gram，不影响流程跑通
+# 3) Optional: local embedding model (used by Mechanism ②)
+#    Ollama + BGE-M3; if unavailable, the pipeline falls back to a
+#    character n-gram embedding and still runs end to end
 
-# 4) 运行
+# 4) Run
 python main.py
 ```
 
-运行后会在当前目录生成：
+Outputs written to the working directory:
 
-| 文件 | 说明 |
+| File | Description |
 |---|---|
-| `mechanism_verification_report_*.json` | 机制运行验证报告（Φ 判定、语义匹配明细、FSM 状态） |
-| `token_usage_report_*.json` | 各智能体 Token 用量统计 |
-| `decision_result.json` | 决策结果（Pareto 前沿 + 推荐方案） |
-| `scenario_model.py` | 场景智能体生成的仿真模型 |
+| `mechanism_verification_report_*.json` | Mechanism verification report (Φ results, semantic match details, FSM states) |
+| `token_usage_report_*.json` | Per-agent token-usage statistics |
+| `decision_result.json` | Decision result (Pareto front + recommended solution) |
+| `scenario_model.py` | Simulation model generated by the scenario agent |
 
-## 6. 运行前置条件
+## 6. Requirements
 
-| 依赖 | 用途 | 必需 |
+| Dependency | Purpose | Required |
 |---|---|---|
 | Python 3.10+ | — | ✅ |
-| DeepSeek（或兼容 OpenAI 协议的）API | 多智能体推理 | ✅ |
-| `deepagents` / `langchain` | 智能体框架 | ✅ |
-| Ollama + BGE-M3 | 语义向量化 | 建议（缺失时降级） |
+| DeepSeek (or any OpenAI-compatible) API | Multi-agent reasoning | ✅ |
+| `deepagents` / `langchain` | Agent framework | ✅ |
+| Ollama + BGE-M3 | Semantic embedding | Recommended (falls back gracefully) |
 
-## 7. 版权与引用 / License and Citation
+## 7. License and Citation
 
-**版权所有 © 2027. 保留所有权利。**
+**Copyright © 2027. All rights reserved.**
 
-本仓库的代码、数据与文档仅供**学术研究与教学**使用。
+The code, data and documentation in this repository are provided for **academic research and teaching** purposes.
 
-> **⚠️ 使用条件：任何基于本仓库代码、数据或方法的工作（论文、学位论文、技术报告、开源项目等），必须在成果中明确引用下列论文。**
+> **⚠️ Condition of use: any work that uses the code, data or methods of this repository — including papers, theses, technical reports and open-source projects — must explicitly cite the following paper.**
 
-### 引用格式
+### Reference
 
 > **AIIDS: Multi-AI agent driven industrial data space framework for multi-factory wafer fabrication order allocation and scheduling**
 > *Journal of Manufacturing Systems*, Volume 90, February 2027, Pages 126–144.
@@ -169,4 +167,4 @@ python main.py
 }
 ```
 
-商业用途请先联系作者获得书面许可。完整实验数据与统计结果以论文为准。
+Commercial use requires prior written permission from the authors.
